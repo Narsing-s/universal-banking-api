@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_557617d0_016e_4191_a594_dce15b923441_Output_Variables_FULLNAME = Array<String> | Null
+

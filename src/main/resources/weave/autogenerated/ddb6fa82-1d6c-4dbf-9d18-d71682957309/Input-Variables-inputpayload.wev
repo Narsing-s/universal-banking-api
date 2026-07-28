@@ -1,0 +1,10 @@
+%dw 2.0
+
+type auto_ddb6fa82_1d6c_4dbf_9d18_d71682957309_Input_Variables_inputpayload = {
+  address?: String, 
+  mobileNumber: String, 
+  FullName?: String, 
+  email: String, 
+  _?: Any
+}
+

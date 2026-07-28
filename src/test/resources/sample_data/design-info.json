@@ -1,0 +1,17 @@
+{
+  "sampleData": {
+    "29aa39ef-5324-4390-8a84-3c897b91be32": {
+      "payload": "sample_data/name.xml"
+    },
+    "4888465e-bd3c-46c8-9ea4-6681d661aa32": {
+      "vars-accountNumber": "sample_data/defaultstringtype.dwl",
+      "vars-amount": "sample_data/defaultnumbertype.json",
+      "vars-Balance": "sample_data/java.dwl"
+    },
+    "3b87a1f5-5d0b-4aad-b52e-a54bc6328862": {
+      "vars-accountNumber": "sample_data/defaultstringtype_1.dwl",
+      "vars-amount": "sample_data/defaultnumbertype_1.json",
+      "vars-BALANCE": "sample_data/java_1.dwl"
+    }
+  }
+}

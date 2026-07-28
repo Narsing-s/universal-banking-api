@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_af2dabf8_1827_44e8_9628_1fd297e8abe7_Output_Variables_emailBody = Any
+

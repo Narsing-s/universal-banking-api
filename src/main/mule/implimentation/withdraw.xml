@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:snowflake="http://www.mulesoft.org/schema/mule/snowflake"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/snowflake http://www.mulesoft.org/schema/mule/snowflake/current/mule-snowflake.xsd">
+	<flow name="post:\accounts\(accountNumber)\withdraw:application\json:universal-banking-api-config">
+		<logger level="INFO" doc:name="Withdraw flow started" doc:id="a879c0c8-8391-4328-8168-69f453e38c31" message="-----------------------------Withdraw Flow triggred----------------------------" />
+		<set-variable value="#[attributes.uriParams.accountNumber]" doc:name="accountNumber for the respective user" doc:id="a1c79615-f5b3-45bb-996d-b3c17ad4ac7c" variableName="accountNumber" />
+		<set-variable value="#[(payload.amount default 0) as Number]" doc:name="amount requested by user" doc:id="8617162a-dfc8-4e30-a7f0-02f8d3c0a555" variableName="amount" />
+		<snowflake:select doc:name="Verify account exist or not" doc:id="2b0a7bd4-b175-48a2-9396-5ce26fae529d" config-ref="Snowflake_Config" >
+			<snowflake:sql ><![CDATA[select * from bank_customer_data where accountNumber = :accountNumber]]></snowflake:sql>
+			<snowflake:input-parameters ><![CDATA[#[{
+  "accountNumber": vars.accountNumber
+  }]]]></snowflake:input-parameters>
+		</snowflake:select>
+		<set-variable value="#[payload.BALANCE[0]]" doc:name="total balance available in the bank" doc:id="97f6604c-b9b5-412b-ab2e-e0ad9f1819f7" variableName="balance" />
+		<set-variable value="#[%dw 2.0&#10;output application/json&#10;var inp = []&#10;---&#10;inp&lt;&lt;payload reduce ((item, accumulator) -&gt; item)]" doc:name="inputpayload which is reuqted data send by user" doc:id="cc79a16e-18a4-4ce0-aca8-d076b721e823" variableName="inputpayload" />
+		<choice doc:name="Choice" doc:id="f2d7b3cc-90b5-49ed-9430-f3c415fde72a" >
+			<when expression="#[sizeOf(payload) &gt; 0]" >
+				<logger level="INFO" doc:name="record found with the requested user data before update database" doc:id="1776a1b5-ebde-47ad-b565-2c16f2e7ede5" message="---------------------------------record found with the requested user data before update database-------------------------------" />
+				<set-variable value="#[payload.EMAIL[0]]" doc:name="email of the user" doc:id="f54ca1f6-c535-4bc5-9d35-c547a36f95fc" variableName="email" />
+				<logger level="INFO" doc:name="Before Update" doc:id="e2609912-71dc-4e56-a959-121d3cb51d49" message="------------------Before Update withdraw Flow-------------" />
+				<set-variable value="#[%dw 2.0&#10;output application/java&#10;&#10;var currentBalance = (vars.balance default 0) as Number&#10;var withdrawAmount = (vars.amount default 0) as Number&#10;var remainingBalance = currentBalance - withdrawAmount&#10;&#10;---&#10;{&#10;    balance: remainingBalance,&#10;    amount: withdrawAmount,&#10;    accountNumber: vars.accountNumber&#10;}]" doc:name="leftBalance mapping " doc:id="9bc06fd8-e06c-4815-83fc-e8ab15141908" variableName="leftBalance" />
+				<set-variable value="#[vars.leftBalance.balance]" doc:name="leftbalances" doc:id="9a122774-2ca5-499f-afab-110678bb7ac1" variableName="leftbalances" />
+				<choice doc:name="Choice" doc:id="9ce92658-efe1-4ac7-a9bb-59e7deaeb88f" >
+					<when expression="#[vars.leftBalance.balance  &gt;= 0]" >
+						<logger level="INFO" doc:name="Inside balance choice router" doc:id="2be4d430-f897-42ea-b134-854a15cd04f9" message="=======Sufficient Balance=======Inside balance choice router===========" />
+						<snowflake:update doc:name="Update account data after money withdraw " doc:id="ae4dd4cf-a8ab-4b1f-84ef-4e700c3ad890" config-ref="Snowflake_Config" >
+							<snowflake:sql ><![CDATA[UPDATE MYDATABASE.PUBLIC.BANK_CUSTOMER_DATA
+SET
+    BALANCE = :balance,
+
+    TRANSACTIONS = ARRAY_APPEND(
+        COALESCE(TRANSACTIONS, ARRAY_CONSTRUCT()),
+        OBJECT_CONSTRUCT(
+            'accountNumber', ACCOUNTNUMBER,
+            'transactionType', 'WITHDRAW',
+            'amount', :amount,
+            'balanceAfterTransaction', :balance,
+            'timestamp', CURRENT_TIMESTAMP()
+        )
+    ),
+
+    LAST_TRANSACTION_DATE = CURRENT_TIMESTAMP()
+
+WHERE ACCOUNTNUMBER = :accountNumber;]]></snowflake:sql>
+							<snowflake:input-parameters ><![CDATA[#[%dw 2.0
+output application/java
+---
+{
+	balance: vars.leftBalance.balance as String,
+	amount: vars.amount,
+	accountNumber: vars.accountNumber,
+}]]]></snowflake:input-parameters>
+						</snowflake:update>
+						<logger level="INFO" doc:name="After Update" doc:id="d940f426-62c1-4970-b4c7-187cc7058229" message="-------------------------After Update withdraw Flow-----------------" />
+						<choice doc:name="checking the withdraw amount updated or not" doc:id="81a00a10-8895-4783-910b-0f29defc7393" >
+							<when expression="#[((payload.updateCount default payload.affectedRows default 0) as Number) &gt; 0]" >
+								<flow-ref doc:name="call withdraw email flow" doc:id="fe756f6d-0c40-4b66-a0dd-ada0c6003be6" name="post_withdraw_success_email_implimentation_flow" targetValue="#[vars.email]" />
+								<logger level="INFO" doc:name="Logger" doc:id="341343cd-c234-4557-b1eb-4acc355b059c" message="--------------------End Withdraw flow------------#[payload]" />
+							</when>
+							<otherwise >
+								<ee:transform doc:name="Update won't happend" doc:id="51b6a4c6-044c-4849-a0e6-2d1022637262" >
+									<ee:message >
+										<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	amount: vars.amount,
+	timestamp: payload.CREATED_AT as String default "",
+	status: "Account is identified but Amount withdraw failed for Account Number - " ++ vars.inputpayload.ACCOUNTNUMBER[0] as String
+}]]></ee:set-payload>
+									</ee:message>
+								</ee:transform>
+							</otherwise>
+						</choice>
+					</when>
+					<otherwise >
+						<ee:transform doc:name="Insufficent balance" doc:id="5e9b6ec1-7afb-413a-a225-6750c327d284" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    bank_account_details: {
+        account_status: {
+            status: "FAILED",
+            statusCode: 404,
+            amount: vars.amount,
+            availableBalance: vars.balance,
+            message: "Insufficient balance. The requested withdrawal amount exceeds the available account balance."
+        }
+    }
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<logger level="INFO" doc:name="End insufficent balance flow" doc:id="c1bbb7bf-b801-406d-a5b7-454005235216" message="==========End insufficent balance flow=========#[payload]" />
+					</otherwise>
+				</choice>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="record not found" doc:id="306c7664-9879-4f14-a26d-0d69041f872b" message="---------------------------------Record not Found for the given input------------------------------" />
+				<ee:transform doc:name="output" doc:id="ccea975a-ddea-4865-9df4-9a943d6f872d" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"bank_account_detailes": {
+		"account_status": {
+			"status": "FAILED",
+			"statusCode": "404",
+			"accountNumber": vars.accountNumber default "Unknow",
+			"message": "An account does not exists with the provided customer details. Please try with new details. If you are a new customer, please validate your information."	
+		}
+	}
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="Record Not Found End Flow" doc:id="0cd0557e-e9ad-4d52-aa2e-a48622e656ef" message="==========Record Not Found End Flow===========#[payload]" />
+			</otherwise>
+		</choice>
+    
+</flow>
+	
+	</mule>

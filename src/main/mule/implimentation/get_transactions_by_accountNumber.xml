@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:snowflake="http://www.mulesoft.org/schema/mule/snowflake"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/snowflake http://www.mulesoft.org/schema/mule/snowflake/current/mule-snowflake.xsd">
+	<flow name="get:\accounts\(accountNumber)\transactions:universal-banking-api-config">
+		<logger level="INFO" doc:name="start Transcation cal" doc:id="13494532-b4df-4c2a-a1c7-1e792413bebc" message="------------start Transcation call----------" />
+		<set-variable value="#[attributes.uriParams.accountNumber as String]" doc:name="accountNumber" doc:id="2a67fb3f-068a-4d8c-8888-eb462f88a43b" variableName="accountNumber" />
+		<snowflake:select doc:name="verify account data" doc:id="c1ef3cca-f9db-4352-8174-3dce39e025a1" config-ref="Snowflake_Config">
+			<snowflake:sql><![CDATA[select * from bank_customer_data where accountnumber = :accountNumber]]></snowflake:sql>
+			<snowflake:input-parameters><![CDATA[#[{
+	"accountNumber": attributes.uriParams.accountNumber
+}]]]></snowflake:input-parameters>
+		</snowflake:select>
+		<set-variable value="#[payload.EMAIL[0]]" doc:name="email" doc:id="6ede21cf-e002-4e80-8245-da26024c33c6" variableName="email" />
+		<set-variable value="#[payload.BANKNAME[0]]" doc:name="bankName" doc:id="06f1cce6-9064-4c29-8dac-782774c75920" variableName="bankName" />
+		<logger level="INFO" doc:name="After verify database" doc:id="4940b5f1-3f7d-4603-acee-66e21af22ce5" message="=========After verify database===" />
+		<choice doc:name="Choice" doc:id="4d98c38f-9ddc-4ef4-a59d-37289b445471" >
+			<when expression="#[sizeOf(payload) == 0 and payload.ACCOUNTNUMBER[0] == vars.accountNumber]">
+				<ee:transform doc:name="account doesnot exist" doc:id="c0b9dea6-0546-460e-bbc9-e79c8291d1d6" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/java
+
+---
+{
+    status: "FAILED",
+    statusCode: 404,
+    accountNumber: vars.accountNumber default "Unknown",
+    error: "ACCOUNT_NOT_FOUND",
+    message: "The requested account does not exist.",
+    details: "No account was found with the provided account number. Please verify the account number and try again."
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="End account doesnot exist flow" doc:id="a0228a99-cbbb-4207-8223-57d86be08bea" message="===============End account doesnot exist flow==========="/>
+			</when>
+			<otherwise>
+				<logger level="INFO" doc:name="account exist" doc:id="8467c3ad-a7f6-4fc2-8398-a463a3791f28" message="#[payload]"/>
+			</otherwise>
+		</choice>
+		<logger level="INFO" doc:name="After validation" doc:id="3591a71d-bb3a-4750-89e9-08a8c60f2718" message="===========After validation========"/>
+		<choice doc:name="Choice" doc:id="79366c68-9220-42fb-9ad6-dd0ea52cab34">
+			<when expression='#[sizeOf(read(payload[0].TRANSACTIONS default "[]", "application/json")) == 0]'>
+				<logger level="INFO" doc:name="Before calling tracation does not exist email implimentation flow" doc:id="9580641a-5a46-4961-96fc-e0493eda5954" message="============Before calling tracation does not exist email implimentation flow=========" />
+				<flow-ref doc:name="calling transactions does not exist email implimentation flow" doc:id="8d9aed62-48ef-41cf-b4ed-f0c732507df3" name="get_transactions_doesnot_exist_email_implimentation_flow" />
+				<logger level="INFO" doc:name="Response fromm transaction does not exist email implimentation flow" doc:id="509564a8-1d00-4d64-b1c8-01204fa7532d" message="==========Response fromm transaction does not exist email implimentation flow=========" />
+				<ee:transform doc:name="account does not exist in database" doc:id="e1bbece9-9dc0-45ba-a979-363a76609aa2">
+					<ee:message>
+						<ee:set-payload><![CDATA[{
+  "bank_account_details": {
+    "transaction_status": {
+      "status": "SUCCESS",
+      "statusCode": "200",
+      "accountNumber": vars.accountNumber default "Unknown",
+      "message": "No transactions found.",
+      "description": "The account exists, but no transactions have been recorded for this account yet.",
+      "transactions": []
+    }
+  }
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="The customer account deatils does not  existed in DB" doc:id="c669c0ca-5552-47a9-89a8-7680d7d607ac" message="----------------------------The customer account deatils does not  existed in DB--------------------------" />
+			</when>
+			<otherwise>
+				<logger level="INFO" doc:name="Before calling tracation database implimentation flow" doc:id="7d2573f9-2aac-49c0-a0a6-671ec31749ef" message="============Before calling tracation database implimentation flow=========" />
+				<flow-ref doc:name="calling transaction database to retrive transactions for the user account" doc:id="3f05d034-7b20-41fc-a5f6-ee9d872c3686" name="get_transactions_database_implimentation_flow" />
+				<logger level="INFO" doc:name="Response recieved from the tracation database implimentation flow" doc:id="5cd440a8-f385-485d-8dc5-da970057bb6e" message="==========Response recieved from the tracation database implimentation flow=========" />
+				<ee:transform doc:name="after database" doc:id="9ae4c614-89ef-4975-bf54-70d549e34c07">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<ee:transform doc:name="payloadType" doc:id="2f1661a2-8cc1-4e50-9358-5a70b8d6ee03">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+{
+    payloadType: typeOf(payload),
+    payload: payload
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<set-variable value='#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;    status: "SUCCESS",&#10;    statusCode: 200,&#10;    transactions: vars.db map (row) -&gt; {&#10;        accountNumber: row.ACCOUNTNUMBER,&#10;        transactionType: row.TRANSACTIONTYPE,&#10;        amount: row.AMOUNT,&#10;        balance: row.BALANCE,&#10;        timestamp: row.TIMESTAMP&#10;    }&#10;}]' doc:name="output" doc:id="2d4105c4-1934-4e62-a780-38fbe78f36c5" variableName="output" />
+				<logger level="INFO" doc:name="Before calling tracation email implimentation flow" doc:id="14f2d978-9cb2-4f18-9d30-7a07e72185bc" message="============Before calling tracation email implimentation flow=========" />
+				<flow-ref doc:name="get transaction email implimentation flow" doc:id="a0be94b0-afaf-4e59-91bd-cec2392c2d48" name="get_transactions_success_email_implimentation_flow" />
+				<logger level="INFO" doc:name="response recieved from tracation email implimentation flow" doc:id="4714e77a-52bb-4e89-806c-4190f87a0c04" message="=============response recieved from tracation email implimentation flow========" />
+				<ee:transform doc:name="final output" doc:id="4f72ee13-c3d0-408d-9799-b3223e6172cd">
+					<ee:message>
+						<ee:set-payload><![CDATA[%dw 2.0
+output application/json
+---
+vars."output"]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+			</otherwise>
+		</choice>
+		<logger level="INFO" doc:name="End Transaction Flow" doc:id="0b89f645-807f-412a-8543-4b8af61c5035" message="-----------------------End Transaction Flow-----------------------#[payload]" />
+    
+</flow>
+	
+	
+	</mule>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="auto_accountNumber_generation_flow" doc:id="f2ec9a95-aca5-4df2-a9fd-771063058285" >
+		<logger level="INFO" doc:name="Request recieved to auto accountnumber creation flow" doc:id="7cc00e20-adc6-489b-8b7e-552303fb5c01" message="=========Request recieved to auto accountnumber creation flow============" />
+		<ee:transform doc:name="auto Account Number creation after user send thier basic data" doc:id="173eb8d4-03d2-47fe-b688-30033dfdf9e7" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    accountNumber: (floor(random() * 10000) + 856974568600) as String
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<set-variable value="#[payload.accountNumber]" doc:name="accountNumber " doc:id="dfcc11a4-2581-455d-b789-e1349a2614ae" variableName="accountNumber" />
+		<logger level="INFO" doc:name="After auto accountnumber creation flow" doc:id="e6b0b744-0d76-44fc-b04e-f3f3c487a7fa" message="=========After auto accountnumber creation flow============" />
+	</flow>
+</mule>

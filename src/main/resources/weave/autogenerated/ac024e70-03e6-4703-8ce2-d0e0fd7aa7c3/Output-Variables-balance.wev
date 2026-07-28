@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_ac024e70_03e6_4703_8ce2_d0e0fd7aa7c3_Output_Variables_balance = String | Number
+
