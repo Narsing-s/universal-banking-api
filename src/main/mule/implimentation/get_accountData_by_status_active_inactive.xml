@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:snowflake="http://www.mulesoft.org/schema/mule/snowflake"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/snowflake http://www.mulesoft.org/schema/mule/snowflake/current/mule-snowflake.xsd">
+	
+	<flow name="get:\accounts:universal-banking-api-config">
+		<logger level="INFO" doc:name="Start Flow" doc:id="d9657dfd-52a8-456e-979e-1cc85f353b3b" message="-------------------------------Start Flow----------------------------------" />
+		<set-variable value="#[attributes.queryParams.status]" doc:name="status" doc:id="07da5da2-e04a-4e2a-8773-d616686bdbe3" variableName="status" />
+		<logger level="INFO" doc:name="Before DB" doc:id="d314bf6d-6ddf-47ac-bdb9-18c431939fbc" message="-----------------Before DB--------------" />
+		<snowflake:select doc:name="verify account" doc:id="e403ed10-86d8-43b1-b969-ed67f379e9d5" config-ref="Snowflake_Config" >
+			<snowflake:sql ><![CDATA[SELECT * 
+FROM bank_customer_data 
+WHERE STATUS = :status]]></snowflake:sql>
+			<snowflake:input-parameters ><![CDATA[#[{ status: vars.status }]]]></snowflake:input-parameters>
+		</snowflake:select>
+		<logger level="INFO" doc:name="After DB" doc:id="9d954922-eafb-48c8-b646-f71f8e19d956" message="--------------After DB--------------" />
+		<set-variable value="#[%dw 2.0&#10;output application/json&#10;var inp = []&#10;---&#10;inp&lt;&lt;payload reduce ((item, accumulator) -&gt; item)]" doc:name="inputpayload" doc:id="90d2f090-6e7a-4295-93c5-6d9717f02b8e" variableName="inputpayload" />
+		<choice doc:name="Choice" doc:id="9f8cec74-b0d9-4510-959c-ee3fd4ab9783" >
+			<when expression='#[vars.status == "INACTIVE"]' >
+				<set-variable value="#[payload.EMAIL[0]]" doc:name="email" doc:id="cbb6ecda-b59c-46e3-bfb7-96df48b07158" variableName="email" />
+				<set-variable value="#[payload.BANKNAME[0]]" doc:name="bankname" doc:id="ea0dabda-f00a-4e60-9ac9-939dc7de1614" variableName="bankname" />
+				<choice doc:name="Choice" doc:id="615d3143-cf08-4133-be88-b7543f6f04f8" >
+					<when expression="#[vars.inputpayload.ACCOUNTNUMBER[0] == null]" >
+						<logger level="INFO" doc:name="Before inactive accounts does not exist flow" doc:id="ce8f7b58-a612-4edf-bb04-3343ef1931ee" message="============Before inactive accounts does not exist flow========" />
+						<flow-ref doc:name="calling inactive accounts does not exist in database" doc:id="d90d054a-a9bc-4fce-bb04-202b0f183928" name="get_account_by_inactive_doesnot_exit_email_implimentation_flow" />
+						<logger level="INFO" doc:name="After inactive accounts does not exist flow" doc:id="30bd550d-f0b6-4215-b6ef-dae3e51ead32" message="==========After inactive accounts does not exist flow=======" />
+						<ee:transform doc:name="account does not exist in database" doc:id="aca4488a-eb89-4f46-b600-8e8ec284f830" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"bank_account_detailes": {
+		"account_status": {
+			"status": "FAILED",
+			"statusCode": "404",
+			"account_status":vars.status,
+			"message": "An account does not exists with the provided customer details. Please try with new details. If you are a new customer, please validate your information."	
+		}
+	}
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<logger level="INFO" doc:name="The customer account deatils does not  existed in DB" doc:id="817f554f-2f70-406c-9038-635fbebb2722" message="----------------------------The customer account deatils does not  existed in DB--------------------------" />
+					</when>
+					<otherwise >
+						<logger level="INFO" doc:name="Before inactive email implimentation flow" doc:id="68e88d81-44a1-44ad-9c89-4bea908692e1" message="=========Before inactive email implimentation flow===========" />
+						<flow-ref doc:name="get inactive accounts email implimentation flow" doc:id="d0eba183-a94c-41a0-b1b3-dcafcd794d5b" name="get_inactive_accounts_success_email_implimentation_flow"/>
+						<logger level="INFO" doc:name="response recieved from the inactive email implimentation flow" doc:id="59927568-2a3c-4bfb-a80c-47eb3405864d" message="=========response recieved from the inactive email implimentation flow==========" />
+						<ee:transform doc:name="response" doc:id="ac99b6a3-6da3-4d0f-a2ea-4211f3d9a35d" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  bankDetails: {
+    account_data: {
+	  "status": "Success",
+	  "statusCode": 200,
+      "message": "The account details email has been sent successfully to the user.",
+      "data": vars.inputpayload map (item) -> item - "TRANSACTIONS"  }
+  }
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</otherwise>
+				</choice>
+				<logger level="INFO" doc:name="End Flow" doc:id="aa26ba02-2f6b-49a5-8d1f-4705c3b6e51d" message="----------------------------End Flow------------------------#[payload]" />
+			</when>
+			<when expression='#[vars.status == "ACTIVE"]' >
+				<set-variable value="#[payload.EMAIL[0]]" doc:name="email" doc:id="63cf7268-87bf-4431-b826-ea603bc06242" variableName="email" />
+				<set-variable value="#[payload.BANKNAME[0]]" doc:name="bankname" doc:id="8df7ac12-da24-407c-a6df-97232a11b843" variableName="bankname" />
+				<choice doc:name="Choice" doc:id="335435da-395e-4a37-b4a2-545368df3f64" >
+					<when expression="#[vars.inputpayload.ACCOUNTNUMBER[0] == null]" >
+						<logger level="INFO" doc:name="Before active accounts does not exist flow" doc:id="6711443f-2009-441c-a56b-4f9ec3e2859b" message="==========Before active accounts does not exist flow========" />
+						<flow-ref doc:name="calling active accounts does not exist in database" doc:id="d3cff422-bfbe-4205-bbce-5473b183d4e9" name="get_account_by_active_doesnot_exist_flow" />
+						<logger level="INFO" doc:name="After active accounts does not exist flow" doc:id="f8baccf2-8a58-4517-abec-f07aec8e0f74" message="===========After active accounts does not exist flow============" />
+						<ee:transform doc:name="account does not exist in database" doc:id="cf780200-910c-4c1e-b152-dd949302af70" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"bank_account_detailes": {
+		"account_status": {
+			"status": "FAILED",
+			"statusCode": "409",
+			"account_status": vars.status,
+			"message": "An account does not exists with the provided customer details. Please try with new details. If you are a new customer, please validate your information."	
+		}
+	}
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<logger level="INFO" doc:name="The customer account deatils does not  existed in DB" doc:id="fe271593-89b6-49ff-b7c5-33ced283919c" message="----------------------------The customer account deatils does not  existed in DB--------------------------" />
+					</when>
+					<otherwise >
+						<logger level="INFO" doc:name="Before active email implimentation flow" doc:id="5759742a-429f-4b93-b031-4aa15682ec54" message="=========Before active email implimentation flow===========" />
+						<flow-ref doc:name="get active accounts email implimentation flow" doc:id="3553dafe-bd08-484b-a896-902a71de9914" name="get_active_accounts_email_implimentation_flow" />
+						<logger level="INFO" doc:name="response recieved from the active email implimentation flow" doc:id="bb697b8f-fe56-4d1c-b97d-a3fd167f0711" message="=========response recieved from the active email implimentation flow==========" />
+						<ee:transform doc:name="response" doc:id="adf39f56-36da-4408-bf38-ec282d2c1a44" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  bankDetails: {
+    account_data: {
+       "status": "Success",
+       "statusCode": 200,
+       "message": "The account details email has been sent successfully to the user.",
+       "data": vars.inputpayload map (item) -> item - "TRANSACTIONS"  }
+  }
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+					</otherwise>
+				</choice>
+				<logger level="INFO" doc:name="End Flow" doc:id="76f0784d-0c0c-4588-82f1-9c819f480f10" message="----------------------------End Flow------------------------#[payload]" />
+			</when>
+		</choice>
+    
+</flow>
+	
+	</mule>

@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:email="http://www.mulesoft.org/schema/mule/email" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd">
+	<flow name="get_account_by_active_doesnot_exist_flow" doc:id="8dc78032-eca8-4aeb-b46e-0b6aaa137125" >
+		<logger level="INFO" doc:name="request reieved to email implementation flow" doc:id="d6fc0041-c065-44e4-933a-f5502a7b4d50" message="==========request reieved to email implementation flow==========" />
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;&#10;---&#10;&quot;&lt;div style='background:#dc2626;padding:20px;text-align:center;color:white;'&gt;&quot; ++&#10;&quot;&lt;h2&gt;🏦 Dream Bank&lt;/h2&gt;&quot; ++&#10;&quot;&lt;p&gt;Account Verification Result&lt;/p&gt;&quot; ++&#10;&quot;&lt;/div&gt;&quot; ++&#10;&quot;&lt;div style='padding:30px;'&gt;&quot; ++&#10;&quot;&lt;h3 style='color:#dc2626;'&gt;Requested Account Not Found&lt;/h3&gt;&quot; ++&#10;&quot;&lt;p&gt;Dear Customer,&lt;/p&gt;&quot; ++&#10;&quot;&lt;p&gt;We could not locate any account matching the details provided in your request.&lt;/p&gt;&quot; ++&#10;&quot;&lt;/div&gt;&quot;]" doc:name="emailBody" doc:id="ad7c98a3-27c8-43d2-9023-d97d16fccad5" variableName="emailBody" />
+		<parse-template doc:name="creating html templete with user data for user email conformation " doc:id="d2dd8e36-8d51-4fe2-8b05-49cbfc689163" >
+			<content >&lt;html&gt;
+&lt;head&gt;
+    &lt;style&gt;
+        body {
+            text-align: center;
+        }
+
+        table {
+            margin: 0 auto;
+            height: 20vh;
+            width: 40vh;
+        }
+
+        h1 {
+            color: green;
+        }
+        h6 {
+            color: red;
+        }
+    &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+    &lt;h3&gt;#[vars.emailBody]&lt;/h3&gt;
+    
+&lt;/body&gt;
+&lt;/html&gt;</content>
+		</parse-template>
+		<email:send doc:name="email send to the respective users with the respective bank data" doc:id="cc72a175-c980-4fa9-8a0f-4305043d39fa" config-ref="Email_SMTP" fromAddress="narsingbeesetti06@gmail.com" subject='#["Please find your inactive account details in - " ++&#10;((vars.db[0].BANKNAME default "Real Bank") as String)]' >
+			<email:to-addresses >
+				<email:to-address value="support.realbank@gmail.com" />
+			</email:to-addresses>
+			<email:body contentType="text/html" encoding="UTF-8" />
+		</email:send>
+		<logger level="INFO" doc:name="after email send to the repective user with thier account detailes" doc:id="8eb69fa8-c962-4564-8ce1-c64dc558b4e1" message="=========after email send to the repective user with thier account detailes===========" />
+	</flow>
+</mule>

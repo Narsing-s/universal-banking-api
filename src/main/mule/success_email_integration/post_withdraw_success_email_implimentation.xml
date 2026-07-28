@@ -1,0 +1,80 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:snowflake="http://www.mulesoft.org/schema/mule/snowflake"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/snowflake http://www.mulesoft.org/schema/mule/snowflake/current/mule-snowflake.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<flow name="post_withdraw_success_email_implimentation_flow" doc:id="3cebfc12-24f3-4f37-8867-40e0edaee6a7" >
+		<logger level="INFO" doc:name="Before send an email" doc:id="8f281428-7ceb-4d1e-81e0-5d0654a887ac" message="--------------------------------------------Before send an email--------------------------------------#[payload]" />
+		<snowflake:select doc:name="retrive data" doc:id="b7286109-cd91-4097-a50c-4565f5cf352e" config-ref="Snowflake_Config" target="db">
+			<snowflake:sql ><![CDATA[SELECT *
+FROM BANK_CUSTOMER_DATA
+WHERE ACCOUNTNUMBER = :accountNumber;]]></snowflake:sql>
+			<snowflake:input-parameters ><![CDATA[#[{
+	"accountNumber": vars.accountNumber
+}]]]></snowflake:input-parameters>
+		</snowflake:select>
+		<set-variable value="#[vars.db[0].BALANCE default 0]" doc:name="BALANCE" doc:id="90e532b3-ccf4-4456-8db4-047bff40c86d" variableName="BALANCE" />
+		<set-variable value="#[vars.db[0].BANKNAME default '']" doc:name="BANKNAME" doc:id="42d6d504-b101-43a5-81c4-ace4455cae69" variableName="BANKNAME" />
+		<set-variable value='#["TXN-" ++ (now() as String {format: "yyyyMMddHHmmss"})]' doc:name="transactionId" doc:id="131685e0-aa0f-4cc7-b2f3-2a36406722c2" variableName="transactionId" />
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;&#10;var record = vars.db[0] default {}&#10;&#10;---&#10;&quot;&lt;!DOCTYPE html&gt;&#10;&lt;html&gt;&#10;&#10;&lt;head&gt;&#10;&#10;&lt;meta charset='UTF-8'/&gt;&#10;&#10;&lt;title&gt;Withdrawal Successful&lt;/title&gt;&#10;&#10;&lt;style&gt;&#10;&#10;body{&#10;margin:0;&#10;padding:0;&#10;background:#eef3f8;&#10;font-family:Segoe UI,Arial,sans-serif;&#10;}&#10;&#10;.container{&#10;width:700px;&#10;margin:30px auto;&#10;background:#fff;&#10;border-radius:15px;&#10;overflow:hidden;&#10;box-shadow:0 8px 30px rgba(0,0,0,.15);&#10;}&#10;&#10;.header{&#10;background:linear-gradient(135deg,#003366,#0059b3);&#10;padding:35px;&#10;text-align:center;&#10;color:#fff;&#10;}&#10;&#10;.header h1{&#10;margin:0;&#10;font-size:32px;&#10;}&#10;&#10;.header p{&#10;margin-top:8px;&#10;font-size:14px;&#10;}&#10;&#10;.success{&#10;padding:35px;&#10;text-align:center;&#10;}&#10;&#10;.success h2{&#10;color:#dc2626;&#10;margin-top:15px;&#10;}&#10;&#10;.circle{&#10;width:90px;&#10;height:90px;&#10;line-height:90px;&#10;border-radius:50%;&#10;background:#ef4444;&#10;color:white;&#10;font-size:45px;&#10;margin:auto;&#10;}&#10;&#10;.card{&#10;margin:25px;&#10;border:1px solid #ddd;&#10;border-radius:12px;&#10;overflow:hidden;&#10;}&#10;&#10;.card-title{&#10;background:#003366;&#10;color:white;&#10;padding:16px;&#10;font-size:20px;&#10;font-weight:bold;&#10;}&#10;&#10;table{&#10;width:100%;&#10;border-collapse:collapse;&#10;}&#10;&#10;td{&#10;padding:15px;&#10;border-bottom:1px solid #eee;&#10;}&#10;&#10;td:first-child{&#10;font-weight:bold;&#10;background:#fafafa;&#10;width:40%;&#10;}&#10;&#10;.amount{&#10;color:#dc2626;&#10;font-size:22px;&#10;font-weight:bold;&#10;}&#10;&#10;.balance{&#10;color:#16a34a;&#10;font-size:22px;&#10;font-weight:bold;&#10;}&#10;&#10;.status{&#10;display:inline-block;&#10;padding:6px 15px;&#10;background:#d1fae5;&#10;color:#15803d;&#10;border-radius:25px;&#10;font-weight:bold;&#10;}&#10;&#10;.notice{&#10;margin:25px;&#10;background:#fff7ed;&#10;border-left:5px solid orange;&#10;padding:20px;&#10;border-radius:8px;&#10;line-height:28px;&#10;}&#10;&#10;.footer{&#10;background:#003366;&#10;color:white;&#10;text-align:center;&#10;padding:30px;&#10;font-size:13px;&#10;line-height:24px;&#10;}&#10;&#10;&lt;/style&gt;&#10;&#10;&lt;/head&gt;&#10;&#10;&lt;body&gt;&#10;&#10;&lt;div class='container'&gt;&#10;&#10;&lt;div class='header'&gt;&#10;&#10;&lt;h1&gt;🏦 &quot; ++ (record.BANKNAME default &quot;REAL BANK&quot;) ++ &quot;&lt;/h1&gt;&#10;&#10;&lt;p&gt;Secure • Trusted • Digital Banking&lt;/p&gt;&#10;&#10;&lt;/div&gt;&#10;&#10;&lt;div class='success'&gt;&#10;&#10;&lt;div class='circle'&gt;⬇&lt;/div&gt;&#10;&#10;&lt;h2&gt;Withdrawal Successful&lt;/h2&gt;&#10;&#10;&lt;p&gt;Your withdrawal transaction has been completed successfully.&lt;/p&gt;&#10;&#10;&lt;/div&gt;&#10;&#10;&lt;div class='card'&gt;&#10;&#10;&lt;div class='card-title'&gt;&#10;&#10;Transaction Summary&#10;&#10;&lt;/div&gt;&#10;&#10;&lt;table&gt;&#10;&#10;&lt;tr&gt;&#10;&#10;&lt;td&gt;Customer Name&lt;/td&gt;&#10;&#10;&lt;td&gt;&quot; ++ (record.FULLNAME default &quot;N/A&quot;) ++ &quot;&lt;/td&gt;&#10;&#10;&lt;/tr&gt;&#10;&#10;&lt;tr&gt;&#10;&#10;&lt;td&gt;Account Number&lt;/td&gt;&#10;&#10;&lt;td&gt;&quot; ++ (record.ACCOUNTNUMBER default vars.accountNumber) ++ &quot;&lt;/td&gt;&#10;&#10;&lt;/tr&gt;&#10;&#10;&lt;tr&gt;&#10;&#10;&lt;td&gt;Transaction ID&lt;/td&gt;&#10;&#10;&lt;td&gt;&quot; ++ vars.transactionId ++ &quot;&lt;/td&gt;&#10;&#10;&lt;/tr&gt;&#10;&#10;&lt;tr&gt;&#10;&#10;&lt;td&gt;Transaction Type&lt;/td&gt;&#10;&#10;&lt;td&gt;WITHDRAW&lt;/td&gt;&#10;&#10;&lt;/tr&gt;&#10;&#10;&lt;tr&gt;&#10;&#10;&lt;td&gt;Amount Debited&lt;/td&gt;&#10;&#10;&lt;td class='amount'&gt;₹ &quot; ++ ((vars.amount default 0) as String) ++ &quot;&lt;/td&gt;&#10;&#10;&lt;/tr&gt;&#10;&#10;&lt;tr&gt;&#10;&#10;&lt;td&gt;Available Balance&lt;/td&gt;&#10;&#10;&lt;td class='balance'&gt;₹ &quot; ++ ((vars.leftBalance.balance default 0) as String) ++ &quot;&lt;/td&gt;&#10;&#10;&lt;/tr&gt;&#10;&#10;&lt;tr&gt;&#10;&#10;&lt;td&gt;Date &amp; Time&lt;/td&gt;&#10;&#10;&lt;td&gt;&quot; ++ ((now()) as String {format:'dd MMM yyyy hh:mm:ss a'}) ++ &quot;&lt;/td&gt;&#10;&#10;&lt;/tr&gt;&#10;&#10;&lt;tr&gt;&#10;&#10;&lt;td&gt;Status&lt;/td&gt;&#10;&#10;&lt;td&gt;&lt;span class='status'&gt;SUCCESS&lt;/span&gt;&lt;/td&gt;&#10;&#10;&lt;/tr&gt;&#10;&#10;&lt;/table&gt;&#10;&#10;&lt;/div&gt;&#10;&#10;&lt;div class='notice'&gt;&#10;&#10;&lt;b&gt;Security Tips&lt;/b&gt;&#10;&#10;&lt;ul&gt;&#10;&#10;&lt;li&gt;Never share your OTP.&lt;/li&gt;&#10;&#10;&lt;li&gt;Never disclose your ATM PIN.&lt;/li&gt;&#10;&#10;&lt;li&gt;Report suspicious transactions immediately.&lt;/li&gt;&#10;&#10;&lt;li&gt;Enable SMS and Email Alerts.&lt;/li&gt;&#10;&#10;&lt;/ul&gt;&#10;&#10;&lt;/div&gt;&#10;&#10;&lt;div class='footer'&gt;&#10;&#10;&lt;b&gt;Real Bank&lt;/b&gt;&lt;br/&gt;&#10;&#10;Customer Care : +91 9494207062&lt;br/&gt;&#10;&#10;support@realbank.com&lt;br/&gt;&lt;br/&gt;&#10;&#10;© 2026 Real Bank. All Rights Reserved.&lt;br/&gt;&#10;&#10;This is a system generated email.&#10;&#10;&lt;/div&gt;&#10;&#10;&lt;/div&gt;&#10;&#10;&lt;/body&gt;&#10;&#10;&lt;/html&gt;&quot;]" doc:name="emailBody" doc:id="3e27bc96-3fba-44e0-9a7d-a9578557d2f3" variableName="emailBody" />
+		<parse-template doc:name="Parse Template" doc:id="6a9c885a-9035-44a7-b77d-b17c28b9e1fd" >
+			<content >&lt;html&gt;
+&lt;head&gt;
+    &lt;style&gt;
+        body {
+            text-align: center;
+        }
+
+        table {
+            margin: 0 auto;
+            height: 20vh;
+            width: 40vh;
+        }
+
+        h1 {
+            color: green;
+        }
+        h6 {
+            color: red;
+        }
+    &lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+    &lt;h3&gt;#[vars.emailBody]&lt;/h3&gt;
+    
+&lt;/body&gt;
+&lt;/html&gt;
+</content>
+		</parse-template>
+		<email:send doc:name="Email Send deposit amount" doc:id="592e3066-c753-4e98-ab55-c6268e91d0df" config-ref="Email_SMTP" fromAddress="narsingbeesetti006@gmail.com" subject='#["Amount Withdraw is successful Today! " ++ vars.BANKNAME[0]]' >
+			<email:to-addresses >
+				<email:to-address value="#[vars.db[0].EMAIL]" />
+			</email:to-addresses>
+			<email:body contentType="text/html" />
+		</email:send>
+		<logger level="INFO" doc:name="email sent successfully" doc:id="912f2878-115c-4540-9b9a-9453930bcefe" message="----------------------------------------email sent successfully-----------------------------------------#[payload]" />
+		<ee:transform doc:name="output" doc:id="3b87a1f5-5d0b-4aad-b52e-a54bc6328862" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+    status: "Success",
+    statusCode: 200,
+    message: "Amount debited successfully for Account Number - " ++ (vars.accountNumber as String),
+    data: {
+        transactionId: "TXN-" ++ (now() as String {format: "yyyyMMddHHmmss"}),
+        currency: "INR",
+        withdrawTime: now(),
+        'type': "Withdraw",
+        amount: vars.amount,
+        balance: vars.leftBalance.balance
+    }
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>

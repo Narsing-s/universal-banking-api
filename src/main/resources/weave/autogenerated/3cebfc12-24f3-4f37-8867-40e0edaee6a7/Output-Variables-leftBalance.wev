@@ -1,0 +1,8 @@
+%dw 2.0
+
+type auto_3cebfc12_24f3_4f37_8867_40e0edaee6a7_Output_Variables_leftBalance = {|
+  balance: Number, 
+  amount: Number, 
+  accountNumber: String
+|}
+

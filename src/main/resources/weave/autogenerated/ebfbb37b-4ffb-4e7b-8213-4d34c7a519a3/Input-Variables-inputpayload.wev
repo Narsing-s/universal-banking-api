@@ -1,0 +1,10 @@
+%dw 2.0
+
+type auto_ebfbb37b_4ffb_4e7b_8213_4d34c7a519a3_Input_Variables_inputpayload = {
+  address?: String, 
+  mobileNumber: String, 
+  FullName?: String, 
+  email: String, 
+  _?: Any
+}
+

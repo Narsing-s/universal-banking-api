@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:snowflake="http://www.mulesoft.org/schema/mule/snowflake"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/snowflake http://www.mulesoft.org/schema/mule/snowflake/current/mule-snowflake.xsd">
+	<flow name="post:\accounts:application\json:universal-banking-api-config">
+		<logger level="INFO" doc:name="Start Flow" doc:id="42942b1f-b2ff-4e6e-b275-e557f742b702" message="----------------------------Start Flow--------------------" />
+		<set-variable value="#[%dw 2.0&#10;output application/json&#10;---&#10;{&#10;	adharNumber: attributes.queryParams.adharNumber,&#10;	bankName: attributes.queryParams.bankName&#10;}]" doc:name="inputAttributes" doc:id="f01e75c4-7c5f-446b-9e8f-815c83a67cdc" variableName="inputAttributes" />
+		<set-variable value="#[%dw 2.0&#10;output application/json&#10;var inp = []&#10;---&#10;inp&lt;&lt;payload reduce ((item, accumulator) -&gt; item)]" doc:name="inputPayload" doc:id="ba4805db-a14d-4347-b2f4-f46ac0af4b9d" variableName="inputPayload" />
+		<logger level="INFO" doc:name="Before Choice" doc:id="33bd9911-b111-41b7-b8bc-e4f7d4305a01" message="------------------Before Choice---------------" />
+		<choice doc:name="Choice" doc:id="170c84fc-f954-4049-90e6-ebc455606118" >
+			<when expression="#[vars.inputPayload.address == null or vars.inputPayload.mobileNumber == null or vars.inputPayload.FullName == null or vars.inputPayload.dateOfBirth == null or vars.inputPayload.email == null]" >
+				<raise-error doc:name="Raise error" doc:id="78d04617-f8ff-4b18-b295-ba8f59b9dc82" type='"HTTP:INVALID_REQUEST" ' description='"REQUIRED_KEY_FIELDS_MISSING" ' />
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Valid Data" doc:id="2748952e-5d87-419a-a869-e3da25d76de4" message="'Valid Data'" />
+			</otherwise>
+		</choice>
+		<logger level="INFO" doc:name="Inputpayload Validation" doc:id="fc14d7b0-89dc-4ff8-a83b-165dfc2f983a" message="============Inputpayload Validation============" />
+		<logger level="INFO" doc:name="Before Db" doc:id="c90f7861-3a34-4813-97ee-14997ac652cf" message="-------------------before DB--------------------------" />
+		<snowflake:select doc:id="3bc27ad6-32d8-4f85-9ae5-2562f868d0ea" config-ref="Snowflake_Config" doc:name="verify account">
+			<snowflake:sql ><![CDATA[SELECT
+    c.ACCOUNTNUMBER,
+    i.IFSC_CODE,
+    i.BRANCH_NAME
+FROM BANK_IFSC_MASTER i
+LEFT JOIN BANK_CUSTOMER_DATA c
+ON (
+       c.EMAIL = :email
+    OR c.DATEOFBIRTH = :dateOfBirth
+    OR c.ADHARNUMBER = :adharNumber
+)
+WHERE UPPER(i.BANK_NAME) = UPPER(:bankName);]]></snowflake:sql>
+			<snowflake:input-parameters ><![CDATA[#[%dw 2.0
+output application/json
+---
+{
+	"email": vars.inputPayload.email,
+	"dateOfBirth": vars.inputPayload.dateOfBirth,
+	"adharNumber": vars.inputAttributes.adharNumber,
+	"bankName": vars.inputAttributes.bankName
+}]]]></snowflake:input-parameters>
+		</snowflake:select>
+		<logger level="INFO" doc:name="After Database" doc:id="dc55d7f5-1635-4048-8a64-e28663038347" message="==========After Database===========" />
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;payload[0].ACCOUNTNUMBER default null]" doc:name="accountNumber" doc:id="3339cc5c-7fd2-48fd-b12e-8c5fb42eb9e2" variableName="accountNumber" />
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;payload[0].IFSC_CODE]" doc:name="ifsc" doc:id="a09d784f-f1e3-4a39-95cb-b928d3ac7c1c" variableName="ifsc" />
+		<set-variable value="#[%dw 2.0&#10;output application/java&#10;---&#10;payload[0].BRANCH_NAME]" doc:name="branchName" doc:id="0e1bee19-00c6-4f35-ac30-872cd08e86cb" variableName="branchName" />
+		<set-variable value="#[vars.inputPayload.email as String]" doc:name="email" doc:id="0d044f2a-b52a-444a-87de-aa2c39037ab6" variableName="email" />
+		<ee:transform doc:name="transform array to object" doc:id="48e57abf-7c2e-44d2-a6a7-980f607c9a4f" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload[0]]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<choice doc:name="verify the customer detalies sent by user if the customer is new then route the request to the insert flow" doc:id="ab4798e1-3e11-4502-a856-2864aa21b557" >
+			<when expression="#[vars.accountNumber != null]" >
+				<logger level="INFO" doc:name="Before already existed email implementation" doc:id="08c5d266-b214-4309-af9f-80fc908692de" message="===========Before already existed email implementation============#[payload]" />
+				<flow-ref doc:name="calling already account existed email  implimentation flow" doc:id="630c766f-15d0-44ec-834a-12b998a59267" name="account_already_existed_email_implimentation_flow" targetValue="#[vars.email as String]"/>
+				<logger level="INFO" doc:name="After already existed email implementation flow" doc:id="ab05a02d-5c93-4be2-b8c8-c8496327c16a" message="=========After already existed email implementation flow==========" />
+				<ee:transform doc:name="Account deatiles aready existed with requested input data" doc:id="15eba034-3ed8-4bef-91f5-1ac27f7e6307" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  bank_account_detailes: {
+    account_status: {
+      status: "FAILED",
+      statusCode: "409",
+      message: "An account already exists with the provided customer details. Please try with new details. If you are a new customer, please validate your information."
+    },
+    account_data: {
+      accountNumber: vars.accountNumber,
+      adharNumber: vars.inputAttributes.adharNumber,
+      bankName: vars.inputAttributes.bankName,
+      ifscCode: vars.ifsc,
+      branchName: vars.branchName
+    },
+    input_data: vars.inputPayload
+  }
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="The customer account is already existed in DB" doc:id="6c5e1c5d-a6b6-484b-b419-0231a320a841" message="----------------------------The customer account is already existed in DB--------------------------#[payload]" />
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Before account creation flow" doc:id="b4cd1d66-17dc-499b-90cc-2fcd9fac679c" message="============Before account creation flow=========" />
+				<flow-ref doc:name="calling auto accountNumber creation flow" doc:id="1ae967df-e983-4110-8984-17f3c66c59d8" name="auto_accountNumber_generation_flow" />
+				<logger level="INFO" doc:name="Reponse recieved from auto accountNumber creation flow" doc:id="84ab9795-7271-46d9-a35b-c3afda08b6fb" message="=============AccountNumber created successfully===========" />
+				<flow-ref doc:name="calling database implimentation flow" doc:id="cd75d29c-99c8-4f7d-a1ce-4e1d6acfbd07" name="post_account_creation_database_implimentation_flow" />
+				<logger level="INFO" doc:name="Response recieved from database flow" doc:id="76607cd1-4227-4bd6-82fc-76bc82b6f80b" message="============Response recieved from database flow=============" />
+				<flow-ref doc:name="Calling Email implimentation flow" doc:id="c4e47f08-fa3d-4d28-b280-b88094dce5ae" name="post_account_creation_success_email_implimentation_flow" />
+				<ee:transform doc:name="response" doc:id="b02668b7-9754-4b03-876c-b9ea6cbf70a6" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	bank_account_detailes: {
+		"account_data": {
+			"status": "Success",
+			"statusCode": 201,
+			"message": "Congratulations!, Your account has been created successfully, and an email has been sent to the user.",
+			"accountCreatedTimestamp": now(),
+			"accountNumber": vars.accountNumber,
+			"bankName": vars.inputAttributes.bankName,
+			"ifsc_code": vars.ifsc,
+			"user_input_data": {
+				"data": vars.inputPayload
+			}
+		}
+	}
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="End Flow" doc:id="4f7e9075-92b5-4b75-b2cf-d5b358f7b63e" message="-------------------End flow--------------#[payload]" />
+			</otherwise>
+		</choice>
+    
+</flow>
+	
+	</mule>

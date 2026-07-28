@@ -1,0 +1,4 @@
+%dw 2.0
+
+type auto_ac9c8dd7_1de0_4adb_875c_10e04b23e070_Input_Variables_FULLNAME = Array<String> | Null
+

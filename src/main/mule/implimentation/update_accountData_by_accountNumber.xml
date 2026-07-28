@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:snowflake="http://www.mulesoft.org/schema/mule/snowflake"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/snowflake http://www.mulesoft.org/schema/mule/snowflake/current/mule-snowflake.xsd">
+	<flow name="patch:\accounts\(accountNumber):application\json:universal-banking-api-config">
+		<logger level="INFO" doc:name="Start Flow update account data flow" doc:id="76ab1b83-9144-4fed-b1c1-5c1b094d2cb2" message="---------------------------Start Flow update account data flow---------------------------" />
+		<set-variable value="#[attributes.uriParams.accountNumber as String]" doc:name="accountNumber" doc:id="71dd9f17-5e9c-4cf0-8f3e-ea46ffc83516" variableName="accountNumber" />
+		<set-variable value="#[payload]" doc:name="inputpayload" doc:id="469209f2-972a-454a-ad88-8e23c571e9cc" variableName="inputpayload" />
+		<logger level="INFO" doc:name="Before DB" doc:id="86dd5e23-bfba-4ef1-a451-b3ed84449b43" message="--------------Before DB-----------" />
+		<snowflake:select doc:name="Verify account in DB" doc:id="bae408fa-65d5-49ce-8499-244291b81c0b" config-ref="Snowflake_Config" >
+			<snowflake:sql ><![CDATA[select * from bank_customer_data where accountnumber = :accountNumber]]></snowflake:sql>
+			<snowflake:input-parameters ><![CDATA[#[{
+	"accountNumber": vars.accountNumber
+	}]]]></snowflake:input-parameters>
+		</snowflake:select>
+		<set-variable value="#[payload.FULLNAME]" doc:name="FULLNAME" doc:id="e39765b9-622a-44de-8624-ebea973ce84c" variableName="FULLNAME" />
+		<logger level="INFO" doc:name="After DB" doc:id="893c9803-866a-4d0b-8f03-f52572c5f2cb" message="-------------------After DB-----------" />
+		<choice doc:name="Choice" doc:id="803099d1-f57f-4d4d-9bca-670e6ddaf9d4" >
+			<when expression="#[sizeOf(payload) == 1 and payload.FULLNAME[0] == vars.inputpayload.FullName and payload.MOBILENUMBER[0] == vars.inputpayload.mobileNumber and payload.ADDRESS[0] == vars.inputpayload.address]" >
+				<logger level="INFO" doc:name="request reieved to already account data upto date email implementation flow" doc:id="abc57c21-da10-42df-b145-8cd1604bfccb" message="==========request reieved to already account data upto date email implementation flow==========" />
+				<flow-ref doc:name="calling patch account upto date email implimentation flow" doc:id="1a5f4e6f-90ef-427a-9763-d18ac2043b74" name="user_data_already_uptodate_email_implimentation_flow" />
+				<ee:transform doc:name="Account Existed" doc:id="cca11059-02a6-4f47-a8ba-4bbb8bda8dd0" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+
+var customer = (vars.db default [])[0] default {}
+
+---
+{
+    Status: "Failed",
+    StatusCode: 200,
+    message: "Requested data is already updated with the same details",
+    accountNumber: vars.accountNumber,
+    account_data: {
+        fullname: customer.FULLNAME,
+        mobilenumber: customer.MOBILENUMBER,
+        address: customer.ADDRESS,
+        accountStatus: customer.STATUS,
+        accountCreatedOn: customer.CREATED_AT
+    }
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="End Flow" doc:id="aa2bf9da-702d-4d92-a0b6-f75b496d2de1" message="--------------------End Flow--------------#[payload]" />
+			</when>
+			<otherwise >
+				<set-variable value="#[payload.EMAIL[0]]" doc:name="email" doc:id="4297b659-aaf3-4baa-a2bd-a462cddf7a1f" variableName="email" />
+				<set-variable value="#[payload.BANKNAME[0]]" doc:name="BANKNAME" doc:id="0f4b7a0d-c92d-4c7b-9bb9-6b5cc027c70c" variableName="BANKNAME" />
+				<flow-ref doc:name="calling update database implimentation flow" doc:id="4f9f334d-a33e-4569-9bd9-e6d041b311a5" name="update_keyfields_requsted_by_user_flow" />
+				<ee:transform doc:name="After update databse then the output transform from array of object to json" doc:id="bb4c7391-bee3-4aee-8ee4-4a27a6c86182" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="reponse recieved from the update database flow" doc:id="b5f8f333-a9ab-4a7e-8d42-d59c6afea5b1" message="============reponse recieved from the update database flow==========" />
+				<flow-ref doc:name="calling patch email implemetion flow" doc:id="a23bb2ac-130d-453f-b124-44b12664e8b9" name="update_user_keyfields_success_email_implimentation_flow" />
+				<logger level="INFO" doc:name="Response recieved from the patch email implimentation flow" doc:id="c4442155-b292-4711-8f3f-302792ef93e7" message="===========Response recieved from the patch email implimentation flow=======" />
+				<ee:transform doc:name="response" doc:id="d8ed1f0b-697b-4a70-b3d4-5d85989ca157" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	bank_account_detailes: {
+		"account_data": {
+			"status": "Success",
+			"statusCode": 200,
+			"message": "The account has been updated successfully, and an email has been sent successfully.",
+			"accountNumber": vars.accountNumber,
+			"user_input_data": {
+				"input_data": vars.inputpayload
+			}
+		}
+	}
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="End Flow" doc:id="1148e1e1-1ba2-44e8-ac78-86af5c156e2d" message="-------------------End Flow----------------------#[payload]" />
+			</otherwise>
+		</choice>
+    
+</flow>
+	
+	</mule>

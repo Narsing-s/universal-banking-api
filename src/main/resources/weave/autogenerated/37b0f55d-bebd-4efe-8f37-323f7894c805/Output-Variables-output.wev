@@ -1,0 +1,8 @@
+%dw 2.0
+
+type auto_37b0f55d_bebd_4efe_8f37_323f7894c805_Output_Variables_output = {|
+  status: String, 
+  statusCode: Number, 
+  transactions: Array<{|    accountNumber: String | Null,     transactionType: String | Null,     amount: Number | Null,     balance: Number | Null,     timestamp: String | Null  |}>
+|}
+

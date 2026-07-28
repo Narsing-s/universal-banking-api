@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:snowflake="http://www.mulesoft.org/schema/mule/snowflake" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/snowflake http://www.mulesoft.org/schema/mule/snowflake/current/mule-snowflake.xsd">
+	<flow name="delete_account_data_in_database_by_accountNumber_flow" doc:id="557617d0-016e-4191-a594-dce15b923441" >
+		<logger level="INFO" doc:name="Request recieved to database implimentation flow" doc:id="b687b023-bcf5-4b55-8259-c898178e60c3" message="------------Request recieved to database implimentation flow-------Before DB--------------" />
+		<snowflake:delete doc:name="Delete accountNumber from the bank database as reuested by user or bank management as the user is no longer" doc:id="300215c4-50df-471d-a5f9-51b0b6c4770b" config-ref="Snowflake_Config" >
+			<snowflake:sql ><![CDATA[delete from bank_customer_data where ACCOUNTNUMBER = :accountNumber]]></snowflake:sql>
+			<snowflake:input-parameters ><![CDATA[#[{
+	"accountNumber": vars.accountNumber
+}]]]></snowflake:input-parameters>
+		</snowflake:delete>
+		<logger level="INFO" doc:name="After Database implementation flow" doc:id="7519b8bb-034f-4824-879a-9d7d2f6367a4" message="----------------------After Database implementation------------------#[payload]" />
+	</flow>
+</mule>

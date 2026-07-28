@@ -1,0 +1,413 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns:snowflake="http://www.mulesoft.org/schema/mule/snowflake" xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/snowflake http://www.mulesoft.org/schema/mule/snowflake/current/mule-snowflake.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd">
+	<flow name="post:\assistance\whatsapp:application\json:universal-banking-api-config">
+		<logger level="INFO" doc:name="Start Whatsapp Assistant Flow" doc:id="da7fc8c0-ffc4-4abd-af13-4d2c04b2a713" message="===============Start Whatsapp Assistant Flow=============" />
+		<set-variable value="#[(payload.mobileNumber default payload.data.from default '') as String]" doc:name="mobileNumber" doc:id="deaec865-37e5-48d9-949b-8dc3ed3b6734" variableName="mobileNumber" />
+		<set-variable value="#[lower(trim(payload.message default payload.data.body default ''))]" doc:name="message" doc:id="c049c7e3-e76b-4735-bdb7-c9a106a4f9fb" variableName="message" />
+		<logger level="INFO" doc:name="Incoming Payload" doc:id="991a7ff8-6465-44d7-9515-afd0ac466d87" message="#[write(payload,'application/json')]" />
+		<snowflake:select doc:name="verify customer detsiles exist or not " doc:id="a8bba8b9-28c9-4d60-8911-d6f63e464ace" config-ref="Snowflake_Config" >
+			<snowflake:sql ><![CDATA[select * from bank_customer_data where mobileNumber = :mobileNumber]]></snowflake:sql>
+			<snowflake:input-parameters ><![CDATA[#[{
+	"mobileNumber": vars.mobileNumber
+}]]]></snowflake:input-parameters>
+		</snowflake:select>
+		<ee:transform doc:name="transform db array payload into json" doc:id="f6bf9595-52a5-4f63-b758-e5b6658df08b" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="After verify database" doc:id="eae1cfd3-9304-47c5-bf21-54a5b7de4d7a" message="#[payload]" />
+		<choice doc:name="Choice" doc:id="47f160eb-f1b8-444f-b698-658d5c336fd2" >
+			<when expression='#[vars.message == "accountdetails"]' >
+				<logger level="INFO" doc:name="Inside choice route" doc:id="06c91e53-19df-4dad-a2ca-2210b0e179e0" message="=============Inside choice router============" />
+				<choice doc:name="accountdetails" doc:id="da667d77-be99-4097-9ead-21db987ee6a6" >
+					<when expression="#[sizeOf(payload) == 0]" >
+						<ee:transform doc:name="account does not exist" doc:id="b22d3cf6-55de-4fc7-bf18-b8a509407ff4" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"bank_account_detailes": {
+		"account_status": {
+			"status": "FAILED",
+			"statusCode": "404",
+			"message": "An account does not exists with the provided customer details. Please try with new details. If you are a new customer, please validate your information."	
+		}
+	}
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<logger level="INFO" doc:name="he customer account deatils does not  existed in Database" doc:id="c105f65b-8c0c-4441-b13a-930369d980d6" message="----------------------------The customer account deatils does not  existed in Database--------------------------" />
+					</when>
+					<otherwise >
+						<snowflake:select doc:name="retrive account deatiles by mobilenumber" doc:id="f225f6ad-f12c-4477-8e40-e56b2979f5a4" config-ref="Snowflake_Config" >
+							<snowflake:sql ><![CDATA[SELECT
+    FULLNAME,
+    ACCOUNTNUMBER,
+    STATUS,
+    BALANCE,
+    EMAIL,
+    BANKNAME,
+    ADDRESS,
+    ADHARNUMBER,
+    CREATED_AT,
+    MOBILENUMBER
+FROM BANK_CUSTOMER_DATA
+WHERE MOBILENUMBER = :mobileNumber;]]></snowflake:sql>
+							<snowflake:input-parameters ><![CDATA[#[{
+	"mobileNumber": vars.mobileNumber
+}]]]></snowflake:input-parameters>
+						</snowflake:select>
+						<ee:transform doc:name="mask fields" doc:id="5d9caf31-af72-425b-bd45-12517f112a99" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+
+var customer = payload[0] default {}
+var acc = (customer.ACCOUNTNUMBER default "") as String
+var adhar = (customer.ADHARNUMBER default "") as String
+
+---
+{
+    mobileNumber: customer.MOBILENUMBER default "",
+    customerName: customer.FULLNAME default "Customer",
+
+    accountNumber:
+        if(sizeOf(acc) >= 4)
+            "XXXXXX" ++ acc[-4 to -1]
+        else
+            "Not Available",
+
+    accountType: customer.STATUS default "N/A",
+
+    balance: customer.BALANCE default 0,
+
+    email: customer.EMAIL default "N/A",
+
+    bankName: customer.BANKNAME default "Real Bank",
+
+    address: customer.ADDRESS default "N/A",
+
+    adharNumber:
+        if(sizeOf(adhar) >= 4)
+            "XXXXXXXX" ++ adhar[-4 to -1]
+        else
+            "Not Available",
+
+    createdAt: customer.CREATED_AT default ""
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<logger level="INFO" doc:name="payload" doc:id="d58f9110-f6a0-47f0-be03-38a1412dbe3b" message="#[write(payload,'application/json')]" />
+						<http:request method="${http.requester.method}" doc:name="Request send to whatsapp assistant" doc:id="fa7054e5-bd4f-422c-a5db-a44b602ab8a8" config-ref="HTTP_Request_configuration" path="${http.requester.path}" >
+							<http:body ><![CDATA[#[%dw 2.0
+output application/x-www-form-urlencoded
+---
+{
+    token: p("ultramsg.token"),
+    to: "91" ++ vars.mobileNumber,
+    body:
+"🏦 Real Bank\n\n" ++
+"Dear " ++ payload.customerName ++ "\n\n" ++
+"🏦 Bank : " ++ payload.bankName ++ "\n" ++
+"👤 Customer : " ++ payload.customerName ++ "\n" ++
+"📱 Mobile : " ++ payload.mobileNumber ++ "\n" ++
+"💳 Account : " ++ payload.accountNumber ++ "\n" ++
+"📊 Status : " ++ payload.accountType ++ "\n" ++
+"💰 Balance : ₹" ++ (payload.balance as String) ++ "\n" ++
+"📧 Email : " ++ payload.email ++ "\n" ++
+"🏠 Address : " ++ payload.address ++ "\n" ++
+"🆔 Aadhaar : " ++ payload.adharNumber ++ "\n" ++
+"📅 Created : " ++ (payload.createdAt as String) ++ "\n\n" ++
+"Thank you for banking with Real Bank."
+}]]]></http:body>
+							<http:query-params ><![CDATA[#[output application/json
+---
+{
+	token : "s4gyjlv0audzesjd"
+}]]]></http:query-params>
+						</http:request>
+						<logger level="INFO" doc:name="UltraMsg Response" doc:id="870805bc-95b6-4034-91cd-cedfc498e42d" message="#[write(payload,'application/json')]" />
+					</otherwise>
+				</choice>
+			</when>
+			<when expression='#[vars.message == "ministatement"]' >
+				<logger level="INFO" doc:name="Inside choice route" doc:id="c4f4334c-e26a-41cd-a0b6-233cc33e9456" message="====================Inside choice route============" />
+				<choice doc:name="ministatement" doc:id="a8ade11c-d68b-4ca0-9d07-a32488cd2af6" >
+					<when expression="#[sizeOf(payload) == 0]" >
+						<ee:transform doc:name="account does not exist" doc:id="07f3b000-940f-494d-9b7d-306ff597fdfa" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"bank_account_detailes": {
+		"account_status": {
+			"status": "FAILED",
+			"statusCode": "404",
+			"message": "An account does not exists with the provided customer details. Please try with new details. If you are a new customer, please validate your information."	
+		}
+	}
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<logger level="INFO" doc:name="he customer account deatils does not  existed in Database" doc:id="739793e3-f480-40ec-bc06-e58425786d5b" message="----------------------------The customer account deatils does not  existed in Database--------------------------" />
+					</when>
+					<otherwise >
+						<snowflake:select doc:name="retrive transacctions data by mobilenumber" doc:id="44219a45-8ba6-4c18-bc2c-13ba9671eb14" config-ref="Snowflake_Config" >
+							<snowflake:sql ><![CDATA[SELECT
+    c.FULLNAME,
+    c.MOBILENUMBER,
+    c.ACCOUNTNUMBER,
+    c.EMAIL,
+    c.STATUS,
+    c.BALANCE,
+    c.ADDRESS,
+    c.ADHARNUMBER,
+    c.BANKNAME,
+    c.CREATED_AT,
+
+    t.value['transactionType']::STRING AS TRANSACTIONTYPE,
+    t.value['amount']::NUMBER AS AMOUNT,
+    t.value['balanceAfterTransaction']::NUMBER AS BALANCEAFTERTRANSACTION,
+    t.value['timestamp']::STRING AS TIMESTAMP
+
+FROM BANK_CUSTOMER_DATA c,
+LATERAL FLATTEN(input => c.TRANSACTIONS) t
+WHERE c.MOBILENUMBER = :MOBILENUMBER;]]></snowflake:sql>
+							<snowflake:input-parameters ><![CDATA[#[{
+	"MOBILENUMBER": vars.mobileNumber
+}]]]></snowflake:input-parameters>
+						</snowflake:select>
+						<logger level="INFO" doc:name="payload" doc:id="fcd05ca3-f8d2-4460-930f-7cb117cb46d6" message="#[write(payload,'application/json')]" />
+						<ee:transform doc:name="mask fields" doc:id="87c00bd1-ea52-465e-96fe-cecef94c610d" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+
+var rows = payload default []
+var customer = rows[0] default {}
+
+var account = (customer.ACCOUNTNUMBER default "") as String
+var adhar = (customer.ADHARNUMBER default "") as String
+var mobile = (customer.MOBILENUMBER default "") as String
+var email = (customer.EMAIL default "") as String
+
+---
+{
+    mobileNumber: mobile,
+    customerName: customer.FULLNAME default "Customer",
+
+    accountNumber:
+        if (sizeOf(account) >= 4)
+            "XXXXXX" ++ account[-4 to -1]
+        else
+            "Not Available",
+
+    accountStatus: customer.STATUS default "N/A",
+    currentBalance: customer.BALANCE default 0,
+
+    email:
+        if (email contains "@")
+            email[0 to 1] ++ "******@" ++ ((email splitBy "@")[1])
+        else
+            "Not Available",
+
+    bankName: customer.BANKNAME default "Real Bank",
+
+    address:
+        if ((customer.ADDRESS default "") != "")
+            "************"
+        else
+            "Not Available",
+
+    adharNumber:
+        if (sizeOf(adhar) >= 4)
+            "XXXXXXXX" ++ adhar[-4 to -1]
+        else
+            "Not Available",
+
+    createdAt: customer.CREATED_AT default "",
+
+    transactions:
+        rows map (item) -> {
+            transactionType: item.TRANSACTIONTYPE,
+            amount: item.AMOUNT,
+            balanceAfterTransaction: item.BALANCEAFTERTRANSACTION,
+            timestamp: item.TIMESTAMP
+        }
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<http:request method="${http.requester.method}" doc:name="Request send to whatsapp assistant" doc:id="35b4152d-60ed-4eb8-bd20-1dcf09aeb2ac" config-ref="HTTP_Request_configuration" path="${http.requester.path}" >
+							<http:body ><![CDATA[#[%dw 2.0
+output application/x-www-form-urlencoded
+
+var txns =
+    if (isEmpty(payload.transactions default []))
+        "No recent transactions."
+    else
+        (payload.transactions map (t,index) ->
+            (index + 1) as String ++ ". " ++
+            (t.transactionType default "") ++
+            " | ₹" ++ (t.amount as String) ++
+            " | Balance: ₹" ++ (t.balanceAfterTransaction as String) ++
+            " | " ++ (t.timestamp as String)
+        ) joinBy "\n"
+
+---
+{
+    token: p("ultramsg.token"),
+
+    to: "91" ++ (payload.mobileNumber as String),
+
+    body:
+        "🏦 *REAL BANK*\n\n" ++
+        "👤 Customer: " ++ payload.customerName ++ "\n" ++
+        "💳 Account: " ++ payload.accountNumber ++ "\n" ++
+        "📱 *Mobile:* " ++ (payload.mobileNumber default "N/A") ++ "\n" ++
+        "📌 *Status:* " ++ (payload.accountStatus default "N/A") ++ "\n" ++
+        "📧 *Email:* " ++ (payload.email default "N/A") ++ "\n" ++
+        "🏠 *Address:* " ++ (payload.address default "N/A") ++ "\n" ++
+        "📅 *Account Created:* " ++ ((payload.createdAt default "") as String) ++ "\n\n" ++
+        "🏦 *Bank:* " ++ (payload.bankName default "Real Bank") ++ "\n" ++
+        
+        "💰 Balance: ₹" ++ (payload.currentBalance as String) ++ "\n\n" ++
+        "📜 Last Transactions\n" ++
+        txns
+}]]]></http:body>
+							<http:query-params ><![CDATA[#[output application/json
+---
+{
+	token : "s4gyjlv0audzesjd"
+}]]]></http:query-params>
+						</http:request>
+						<logger level="INFO" doc:name="UltraMsg Response" doc:id="5184f0e7-f2cf-4926-8265-48cb612d4234" message="#[write(payload,'application/json')]" />
+					</otherwise>
+				</choice>
+			</when>
+			<when expression="#[vars.message == 'balance']" >
+				<logger level="INFO" doc:name="Inside choice route" doc:id="f965bf18-30ab-4e5d-9843-f811a9d8f2ab" message="============Inside choice route=========" />
+				<choice doc:name="Balance " doc:id="fc0b7a66-eeb8-45d4-bf7b-dc12c2280706" >
+					<when expression="#[sizeOf(payload) == 0]" >
+						<ee:transform doc:name="account does not exist" doc:id="af1ef747-35ac-45ae-bcbd-476c72115ec9" >
+							<ee:message >
+								<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"bank_account_detailes": {
+		"account_status": {
+			"status": "FAILED",
+			"statusCode": "404",
+			"message": "An account does not exists with the provided customer details. Please try with new details. If you are a new customer, please validate your information."	
+		}
+	}
+}]]></ee:set-payload>
+							</ee:message>
+						</ee:transform>
+						<logger level="INFO" doc:name="he customer account deatils does not  existed in Database" doc:id="7a5dca04-c3ea-4800-9da0-b5466b0f660a" message="----------------------------The customer account deatils does not  existed in Database--------------------------" />
+					</when>
+					<otherwise >
+						<logger level="INFO" doc:name="Before database inside  balance choice router" doc:id="1ff179f7-242e-41ca-a796-9d1f501cd688" message="===============Before database inside  balance choice router============" />
+						<snowflake:select doc:name="retrive the account data by the user mobile number" doc:id="0c7ae430-1021-414a-b213-6b613e6e71c2" config-ref="Snowflake_Config" >
+							<snowflake:sql ><![CDATA[SELECT
+    FULLNAME,
+    ACCOUNTNUMBER,
+    BALANCE,
+    BANKNAME,
+    MOBILENUMBER
+FROM BANK_CUSTOMER_DATA
+WHERE MOBILENUMBER = :mobileNumber;]]></snowflake:sql>
+							<snowflake:input-parameters ><![CDATA[#[{
+	"mobileNumber": vars.mobileNumber
+}]]]></snowflake:input-parameters>
+						</snowflake:select>
+						<logger level="INFO" doc:name="after retrive data the output of data base is array transform into json" doc:id="2b939a1c-8fca-4a56-91c9-eda7bc5ab99c" message="#[write(payload,'application/json')]" />
+						<http:request method="${http.requester.method}" doc:name="Request send to whatsapp assistant" doc:id="5a572e5a-a1ab-46e4-8042-01fd2043df61" config-ref="HTTP_Request_configuration" path="${http.requester.path}" >
+							<http:body ><![CDATA[#[%dw 2.0
+output application/x-www-form-urlencoded
+
+// Safely extract mobile number from array or fallback to "N/A"
+var mobileNumber = 
+    if (payload.mobileNumber is Array)
+        (payload.mobileNumber[0] as String) default "N/A"
+    else 
+        (payload.mobileNumber as String) default "N/A"
+
+// Use default values for potentially null fields
+var customerName = payload.FULLNAME[0] default "N/A"
+var accountNumber = payload.ACCOUNTNUMBER[0] default "N/A"
+var bankName = payload.BANKNAME[0] default "N/A"
+var balance = payload.BALANCE[0] default "N/A"
+---
+{
+    token: p("ultramsg.token"),
+    to: "91" ++ mobileNumber,
+    body: 
+        "👤 Customer: " ++ customerName ++ "\n" ++
+        "💳 Account: " ++ accountNumber ++ "\n" ++
+        "📱 *Mobile:* " ++ mobileNumber ++ "\n" ++
+        "💰 Balance: ₹" ++ balance ++ "\n\n" ++
+        "🏦 *Bank:* " ++ bankName ++ "\n"
+}]]]></http:body>
+							<http:query-params ><![CDATA[#[output application/json
+---
+{
+	token : "s4gyjlv0audzesjd"
+}]]]></http:query-params>
+						</http:request>
+						<logger level="INFO" doc:name="Logger" doc:id="725cb959-0549-49ee-a248-b89cc78dd250" />
+					</otherwise>
+				</choice>
+			</when>
+			<otherwise >
+				<logger level="INFO" doc:name="Unknown command" doc:id="20c0f0f3-6d75-4fd5-9119-c70966611176" message="#[vars.message]" />
+				<set-payload value='#[{"status":"UNKNOWN COMMAND"}]' doc:name="status" doc:id="f0db8b4f-9bff-4973-ab9c-f4aaa6a076d6" />
+			</otherwise>
+		</choice>
+		<logger level="INFO" doc:name="after request connector" doc:id="0ae8c584-95df-4c23-af5c-1d5afc83b575" message="#[write(payload,'application/json')]" />
+		<ee:transform doc:name="input payload" doc:id="61224955-0547-4bc1-b511-484cc9406c16" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+
+var sentStatus =
+    (payload.sent default false)
+
+---
+if (
+    sentStatus == true or
+    sentStatus == "true"
+)
+{
+    status: "SUCCESS",
+    message: "WhatsApp message sent successfully",
+    messageId: payload.id default "",
+    response: payload
+}
+else
+{
+    status: "FAILED",
+    error: payload.error default payload.message default "Unable to send message",
+    response: payload
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+		<logger level="INFO" doc:name="End Whatsapp Assistant Flow" doc:id="465a78c4-5fd9-4d28-aa03-960d825b4a4e" message="===============End Whatsapp Assistant Flow=============" />
+    
+</flow>
+	
+	
+	</mule>

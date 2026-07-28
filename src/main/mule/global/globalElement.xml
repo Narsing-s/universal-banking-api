@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:snowflake="http://www.mulesoft.org/schema/mule/snowflake"
+	xmlns:email="http://www.mulesoft.org/schema/mule/email"
+	xmlns:apikit="http://www.mulesoft.org/schema/mule/mule-apikit" xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/mule-apikit http://www.mulesoft.org/schema/mule/mule-apikit/current/mule-apikit.xsd 
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/email http://www.mulesoft.org/schema/mule/email/current/mule-email.xsd
+http://www.mulesoft.org/schema/mule/snowflake http://www.mulesoft.org/schema/mule/snowflake/current/mule-snowflake.xsd">
+	<http:listener-config name="universal-banking-api-httpListenerConfig">
+        <http:listener-connection host="0.0.0.0" port="8081" />
+    </http:listener-config>
+    <apikit:config name="universal-banking-api-config" api="universal-banking-api.raml" outboundHeadersMapName="outboundHeaders" httpStatusVarName="httpStatus" />
+	<email:smtp-config name="Email_SMTP" doc:name="Email SMTP" doc:id="b6d86f45-d44f-4391-a139-bc5cec580b3c" >
+		<email:smtp-connection host="${email.host}" port="${email.port}" user="${email.username}" password="${email.password}" >
+			<email:properties >
+				<email:property key="${email.key}" value="${email.value}" />
+			</email:properties>
+		</email:smtp-connection>
+	</email:smtp-config>
+	<snowflake:snowflake-config name="Snowflake_Config" doc:name="Snowflake Config" doc:id="0dca7874-0fe9-411b-9d85-b9a2599ba182" >
+		<snowflake:snowflake-connection accountName="${db.sf.name}" warehouse="${db.sf.warehouse}" database="${db.sf.database}" schema="${db.sf.schema}" user="${db.sf.user}" password="${db.sf.password}" role="${db.sf.role}" />
+	</snowflake:snowflake-config>
+	<configuration-properties doc:name="Configuration properties" doc:id="a368b88b-d9ec-456c-80a7-076bc147aeeb" file="config_properties\local_properties.yaml" />
+	<http:request-config name="HTTP_Request_configuration" doc:name="HTTP Request configuration" doc:id="0b31db44-2861-4b90-8c40-bded4e7973b9" >
+		<http:request-connection host="${http.requester.host}" />
+	</http:request-config>
+	
+	
+</mule>

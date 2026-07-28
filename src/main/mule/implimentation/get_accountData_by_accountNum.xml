@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:snowflake="http://www.mulesoft.org/schema/mule/snowflake"
+	xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/snowflake http://www.mulesoft.org/schema/mule/snowflake/current/mule-snowflake.xsd">
+	<flow name="get:\accounts\(accountNumber):universal-banking-api-config">
+		<logger level="INFO" doc:name="Start Flow" doc:id="8734dae6-1626-4250-9afc-47a775de396a" message="-------------------------------Start Flow----------------------------------" />
+		<set-variable value="#[attributes.uriParams.accountNumber]" doc:name="accountNumber" doc:id="b2f6d692-73fb-4538-a2aa-56dc3a1e09e8" variableName="accountNumber" />
+		<logger level="INFO" doc:name="Before DB" doc:id="fa469cf6-4fbb-4c85-99f8-e60d666a3e72" message="-----------------Before DB--------------" />
+		<snowflake:select doc:name="verify account" doc:id="6aeaf498-861b-42ac-8d4c-b28e41228e56" config-ref="Snowflake_Config" >
+			<snowflake:sql ><![CDATA[select * from BANK_CUSTOMER_DATA where accountNumber = :account]]></snowflake:sql>
+			<snowflake:input-parameters ><![CDATA[#[{
+	"account": vars.accountNumber
+}]]]></snowflake:input-parameters>
+		</snowflake:select>
+		<logger level="INFO" doc:name="After DB" doc:id="78cc11a2-e841-4826-a36d-972b769db4bc" message="--------------After DB--------------" />
+		<set-variable value="#[payload.EMAIL[0]]" doc:name="email" doc:id="55ba5bbe-95c4-482d-b68e-f38ca41248a9" variableName="email" />
+		<choice doc:name="Choice" doc:id="709384d0-b288-405e-823a-7887664e6e2a" >
+			<when expression="#[sizeOf(payload) == 0]" >
+				<logger level="INFO" doc:name="request reieved to email implementation flow" doc:id="43f8f509-41ab-4c91-bf07-3fd0783d6dd9" message="==========request reieved to email implementation flow==========" />
+				<flow-ref doc:name="calling get account by accountNumber doest not exist email implimentation flow" doc:id="90488864-3089-45b0-b881-eb710927f519" name="delete_accountNumber_doesnot_exit_email_implimentation_flow"/>
+				<logger level="INFO" doc:name="response reieved to account doesnot exist email implementation flow" doc:id="2a933cc7-fbca-4cc5-beaa-2d693cfadaf3" message="==========response reieved to account doesnot exist email implementation flow==========" />
+				<ee:transform doc:name="Account not found" doc:id="22b94de9-50d2-4d75-bb8b-8ad2e6f2a353" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  status: "Failed",
+  message: "We couldn’t find an account with the given account number. Please check and try again.",
+  accountNumber: vars.accountNumber
+}]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="End Flow" doc:id="4d3a34f0-63b5-471b-80bb-4102ba29623d" message="-------------End Flow-------------#[payload]" />
+			</when>
+			<otherwise >
+				<set-variable value="#[payload.EMAIL[0]]" doc:name="email" doc:id="12bd634d-9768-46b2-b4e7-8e3d1f7ffc4d" variableName="email" />
+				<set-variable value="#[payload.BANKNAME[0]]" doc:name="bankname" doc:id="37d328ab-fe6b-405e-b477-1eb7245ac43f" variableName="bankname" />
+				<set-variable value="#[payload.STATUS[0]]" doc:name="status" doc:id="4928a3ec-5a8c-44b3-b02f-5d4bb5a1027a" variableName="status" />
+				<logger level="INFO" doc:name="Before calling get account data by the accountnumber email implimentation flow" doc:id="59561eb9-3dbc-4f2a-9893-d345bbd2a5d3" message="========Before calling get account data by the accountnumber email implimentation flow======" />
+				<flow-ref doc:name="calling to get account data by retriving data by accountNumber email implimentation flow" doc:id="be30e9fd-8fe2-449c-b87b-7bc76b7a0e13" name="get_account_detailes_by_accountNumber_success_email_implimentation_flow" />
+				<logger level="INFO" doc:name="Response recieved from the accountnumber email implimentation flow" doc:id="b41f1105-8eb1-44ef-a580-d8106e6931a2" message="======Response recieved from the accountnumber email implimentation flow==========" />
+				<ee:transform doc:name="response" doc:id="04c55c58-7cb1-4748-a641-99f8caa20727" >
+					<ee:message >
+						<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+  bankDetails: {
+    account_data: {
+    	"status": "success",
+    	"statusCode": 200,
+    	"message": "The account details email has been sent successfully to the user.",
+    	"accountNumber": vars.accountNumber,
+    	"bankName": vars.bankname,
+    	"email": vars.email,
+    	"status": vars.status		
+    }
+  }
+}
+]]></ee:set-payload>
+					</ee:message>
+				</ee:transform>
+				<logger level="INFO" doc:name="End Flow" doc:id="2296f648-be3c-4013-ac89-966bb70cdc1f" message="----------------------------End Flow------------------------#[payload]" />
+			</otherwise>
+		</choice>
+    
+</flow>
+	
+	
+	</mule>

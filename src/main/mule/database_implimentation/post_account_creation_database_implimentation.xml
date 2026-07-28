@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:snowflake="http://www.mulesoft.org/schema/mule/snowflake" xmlns="http://www.mulesoft.org/schema/mule/core"
+	xmlns:doc="http://www.mulesoft.org/schema/mule/documentation"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/snowflake http://www.mulesoft.org/schema/mule/snowflake/current/mule-snowflake.xsd">
+	<flow name="post_account_creation_database_implimentation_flow" doc:id="ff6862c0-271f-465c-a028-85410e5fe87f" >
+		<logger level="INFO" doc:name="Request recieved to database implimentation flow" doc:id="ed1834cb-901b-4c9f-8327-58c98d0b35eb" message="------------Request recieved to database implimentation flow-------Before DB--------------" />
+		<snowflake:insert doc:id="33b6d40c-1544-4a97-b49b-67832a500e44" config-ref="Snowflake_Config" doc:name="Insert new customer data into real bank database" >
+			<snowflake:sql ><![CDATA[insert into bank_customer_data(FullName,dateOfBirth,mobileNumber,bankName,email,address,adharNumber,accountNumber,ifsc_code,branch_name)
+values (:FullName, :dateOfBirth, :mobileNumber, :bankName, :email, :address, :adharNumber, :accountNumber, :ifsc_code, :branch_name);]]></snowflake:sql>
+			<snowflake:input-parameters ><![CDATA[#[{
+	"FullName": vars.inputPayload.FullName,
+	"dateOfBirth": vars.inputPayload.dateOfBirth,
+	"mobileNumber": vars.inputPayload.mobileNumber,
+	"email": vars.inputPayload.email,
+	"address": vars.inputPayload.address,
+	"adharNumber": vars.inputAttributes.adharNumber,
+	"accountNumber": vars.accountNumber,
+	"bankName": vars.inputAttributes.bankName,
+	"ifsc_code": vars.ifsc,
+	"branch_name": vars.branchName
+}]]]></snowflake:input-parameters>
+		</snowflake:insert>
+		<logger level="INFO" doc:name="After Database implementation" doc:id="8156acfb-28c9-4e73-b54c-b55254b98ff3" message="----------------------After Database implementation------------------#[payload]" />
+	</flow>
+</mule>
