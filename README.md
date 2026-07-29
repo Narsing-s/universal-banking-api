@@ -358,7 +358,7 @@ The API can be tested using:
 
 # Author
 
-**Narsing Rao Beesetti**
+**Narsingarao Beesetti**
 
 **MuleSoft Developer**
 
