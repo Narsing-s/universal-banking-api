@@ -22,6 +22,10 @@ The **Universal Banking API** is a MuleSoft RESTful application that provides co
 * Snowflake Database Integration
 * Error Handling
 * Logging and Monitoring
+* SMS Notifications
+* Email Notifications
+* PDF Bank Statements
+* Loan Management
 
 ---
 
@@ -341,13 +345,9 @@ The API can be tested using:
 
 * UPI Payments (Google Pay, PhonePe, Paytm)
 * Credit Card Services
-* Loan Management
 * Fixed Deposits
 * Beneficiary Management
 * Fund Transfers
-* SMS Notifications
-* Email Notifications
-* PDF Bank Statements
 * AI Banking Assistant
 * Fraud Detection
 * QR Code Payments
